@@ -6,7 +6,7 @@ import { LoginComponent } from "./components/LoginComponent";
 
 // Firebase Imports
 import { auth } from "./firebase";
-import { onAuthStateChanged, User, signOut } from "firebase/auth";
+import { onAuthStateChanged, User } from "firebase/auth";
 
 export interface Meal {
   id: number;
@@ -35,13 +35,14 @@ const DAYS = [
   "Sunday",
 ];
 
-// CHANGED: Base URL now points to the root API to access both /plans and /user/sync
 const API_BASE_URL =
   process.env.REACT_APP_API_URL || "http://localhost:8080/api/v1";
 
 export default function App() {
   // Auth State
   const [user, setUser] = useState<User | null>(null);
+  // NEW: State to store user data from your Backend (DB)
+  const [backendData, setBackendData] = useState<any>(null);
   const [idToken, setIdToken] = useState<string | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
 
@@ -60,23 +61,24 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         try {
-          // Get the JWT token for the backend
           const token = await currentUser.getIdToken();
           setIdToken(token);
           setUser(currentUser);
 
-          // Sync with Backend
-          await syncUserToBackend(token);
+          // Sync with Backend and capture the result
+          const dbUser = await syncUserToBackend(token);
+          if (dbUser) {
+            setBackendData(dbUser);
+          }
 
-          // Fetch Data
           fetchMeals(token);
         } catch (err) {
           console.error("Error setting up auth session:", err);
           setError("Failed to initialize session");
         }
       } else {
-        // Logged out
         setUser(null);
+        setBackendData(null);
         setIdToken(null);
         setMeals([]);
       }
@@ -92,19 +94,21 @@ export default function App() {
       const response = await fetch(`${API_BASE_URL}/user/sync`, {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${token}`, // Secure Header
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
       if (!response.ok) throw new Error("Backend sync failed");
-      console.log("User synced with backend!");
+
+      // RETURN the user data so we can use it in the UI
+      return await response.json();
     } catch (err) {
       console.error("Backend sync error:", err);
-      // Optional: force logout if backend is unreachable
+      return null;
     }
   };
 
-  // --- 3. CRUD OPERATIONS (Protected) ---
+  // --- 3. CRUD OPERATIONS ---
 
   const fetchMeals = async (token: string) => {
     setLoading(true);
@@ -120,7 +124,6 @@ export default function App() {
       setMeals(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
-      console.error("Error fetching meals:", err);
     } finally {
       setLoading(false);
     }
@@ -152,7 +155,7 @@ export default function App() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${idToken}`, // Add Token
+          Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
           dayOfWeek: dayOfWeekMap[selectedDay],
@@ -184,7 +187,7 @@ export default function App() {
       const response = await fetch(`${API_BASE_URL}/plans/${id}`, {
         method: "DELETE",
         headers: {
-          Authorization: `Bearer ${idToken}`, // Add Token
+          Authorization: `Bearer ${idToken}`,
         },
       });
       if (!response.ok) throw new Error("Failed to delete meal");
@@ -209,6 +212,12 @@ export default function App() {
     setIsModalOpen(true);
   };
 
+  // Helper to determine display name
+  // Prioritize Backend Name > Firebase Name > Default
+  // Note: Check if your backend uses 'name', 'fullName', or 'username'
+  const displayName =
+    backendData?.name || backendData?.fullName || user?.displayName || "User";
+
   // --- RENDER ---
 
   if (authLoading) {
@@ -225,21 +234,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Updated Header to accept logout prop if your component supports it */}
-      <Header onAddMeal={() => setIsModalOpen(true)} />
-
-      {/* Simple logout button added here if not in Header */}
-      <div className="max-w-7xl mx-auto px-4 pt-4 flex justify-between items-center">
-        <div className="text-sm text-gray-500">
-          Logged in as {user.displayName}
-        </div>
-        <button
-          onClick={handleLogout}
-          className="text-sm text-red-600 hover:text-red-800 font-medium"
-        >
-          Sign Out
-        </button>
-      </div>
+      <Header
+        onAddMeal={() => setIsModalOpen(true)}
+        userName={displayName}
+        onLogout={handleLogout}
+      />
 
       {error && (
         <div className="max-w-7xl mx-auto px-4 py-4 mt-4 bg-red-50 text-red-700 rounded">
