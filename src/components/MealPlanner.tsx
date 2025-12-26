@@ -17,7 +17,7 @@ export function MealPlanner({
   return (
     <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
       {/* Mobile View: Stacked days */}
-      <div className="lg:hidden space-y-4">
+      <div className="hidden space-y-4">
         {days.map((day) => (
           <DayColumn
             key={day}
@@ -31,7 +31,7 @@ export function MealPlanner({
       </div>
 
       {/* Desktop View: Grid layout */}
-      <div className="hidden lg:grid lg:grid-cols-7 gap-4">
+      <div className="lg:grid lg:grid-cols-7 gap-4">
         {days.map((day) => (
           <DayColumn
             key={day}
