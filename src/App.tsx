@@ -1,3 +1,5 @@
+/// <reference types="vite/client" />
+
 import { useState, useEffect } from "react";
 import { Header } from "./components/Header";
 import { MealPlanner } from "./components/MealPlanner";
@@ -36,7 +38,7 @@ const DAYS = [
 ];
 
 const API_BASE_URL =
-  process.env.REACT_APP_API_URL || "http://localhost:8080/api/v1";
+  import.meta.env.VITE_API_URL || "http://localhost:8080/api/v1";
 
 export default function App() {
   // Auth State
